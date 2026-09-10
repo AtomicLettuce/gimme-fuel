@@ -1,6 +1,6 @@
 # Servei systemd que manté el mapa d'estacions engegat i el torna a aixecar si cau.
 #
-# Instal·lació (canvia l'usuari i la ruta si no són aquests):
+# Instal·lació (canvia `pi` pel teu usuari a User i a les dues rutes si cal):
 #   sudo cp desplegament/gimme-fuel-web.service /etc/systemd/system/
 #   sudo systemctl daemon-reload
 #   sudo systemctl enable --now gimme-fuel-web
@@ -18,8 +18,9 @@ Type=simple
 User=pi
 WorkingDirectory=/home/pi/gimme-fuel
 
-# Ruta de la base de dades. Si el fitxer viu al costat del codi, es pot treure.
-Environment=RUTA_BASE_DADES=/home/pi/gimme-fuel/data.db
+# La base de dades és ~/gimme-fuel/data.db, al costat del codi, que ja és on la
+# busca l'aplicació per defecte. Només cal aquesta variable si la mous:
+#   Environment=RUTA_BASE_DADES=~/dades/estacions.db
 
 # --server.address 0.0.0.0  perquè s'hi pugui arribar des de la xarxa local.
 # --server.headless         no hi ha navegador que obrir a la Pi.

@@ -13,12 +13,16 @@ Tot el codi és Python: no hi ha plantilles HTML, ni CSS, ni JavaScript.
 .\.venv\Scripts\streamlit.exe run aplicacio.py
 ```
 
-S'obre al navegador (per defecte <http://localhost:8501>). Per emprar una altra
-base de dades:
+S'obre al navegador (per defecte <http://localhost:8501>). La base de dades és
+`data.db`, al costat del codi; per emprar-ne una altra:
 
 ```powershell
 $env:RUTA_BASE_DADES = "C:\ruta\a\altra.db"
 ```
+
+A la variable s'hi admet la titlla (`~/gimme-fuel/data.db`): l'expandeix
+l'aplicació, perquè `systemd` passa l'entorn sense intèrpret de comandes i
+l'hi deixaria tal qual.
 
 ## Proves
 

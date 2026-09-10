@@ -5,9 +5,23 @@ from pathlib import Path
 
 DIRECTORI_BASE = Path(__file__).resolve().parent
 
-# Ruta de la base de dades SQLite. Sobreescrivible amb la variable d'entorn
-# RUTA_BASE_DADES per no acoblar el codi a una ubicació concreta.
-RUTA_BASE_DADES = Path(os.environ.get("RUTA_BASE_DADES", DIRECTORI_BASE / "data.db"))
+def ruta_base_dades() -> Path:
+    """Resol on és la base de dades SQLite.
+
+    Per defecte, al costat del codi. La variable d'entorn RUTA_BASE_DADES la
+    pot moure a qualsevol altra banda i s'hi admet la titlla: ni `systemd` ni
+    cap servei que passi l'entorn sense intèrpret de comandes l'expandeixen, i
+    sense això un `~/gimme-fuel/data.db` arribaria tal qual i no s'obriria.
+
+    :return: ruta al fitxer SQLite, amb la titlla ja resolta.
+    """
+    configurada = os.environ.get("RUTA_BASE_DADES")
+    if not configurada:
+        return DIRECTORI_BASE / "data.db"
+    return Path(configurada).expanduser()
+
+
+RUTA_BASE_DADES = ruta_base_dades()
 
 # Centre i zoom del mapa (Mallorca) quan no es pot enquadrar cap estació.
 CENTRE_PER_DEFECTE = (39.62, 2.95)
