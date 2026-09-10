@@ -29,6 +29,93 @@ $env:RUTA_BASE_DADES = "C:\ruta\a\altra.db"
 Les proves d'integració executen l'aplicació sencera amb `AppTest` de Streamlit
 sobre `data.db`, sense navegador.
 
+## Desplegament en una Raspberry Pi Zero 2 W
+
+La Pi Zero 2 W té **512 MB de RAM** i aquest és l'únic límit seriós: el procés
+de Streamlit amb tot importat ocupa uns 155 MB, i uns 170 MB amb les dades
+carregades i el mapa construït. Hi cap, amb un o dos visitants alhora, però
+sense marge per a res més.
+
+### 1. Sistema operatiu de 64 bits
+
+**Obligatori.** Les rodes precompilades de `pandas`, `numpy` i sobretot
+`pyarrow` (que Streamlit necessita) només existeixen per a `aarch64`; amb la
+imatge de 32 bits, `pip` intentaria compilar-les i una Pi Zero 2 W es quedaria
+hores i acabaria sense memòria. Amb Raspberry Pi OS Lite (64 bits) n'hi ha prou:
+no cal escriptori i s'estalvien uns 200 MB.
+
+### 2. Preparar la màquina
+
+```bash
+sudo apt update && sudo apt install -y python3-venv git
+sudo dphys-swapfile swapoff
+sudo sed -i 's/^CONF_SWAPSIZE=.*/CONF_SWAPSIZE=1024/' /etc/dphys-swapfile
+sudo dphys-swapfile setup && sudo dphys-swapfile swapon
+```
+
+L'intercanvi d'1 GB no és per fer-hi córrer l'aplicació —seria lentíssim— sinó
+xarxa de seguretat per als pics: la instal·lació de dependències i el moment en
+què entra un segon visitant.
+
+### 3. Copiar el projecte i instal·lar
+
+```bash
+git clone <el-teu-repositori> ~/gimme-fuel && cd ~/gimme-fuel
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+```
+
+Totes les dependències tenen roda `manylinux_2_28_aarch64`, així que no es
+compila res; amb la SD i la xarxa de la Pi, compta uns deu minuts. Si el sistema
+porta Python 3.11 (Raspberry Pi OS bookworm), `numpy` es resoldrà a una versió
+anterior a la d'aquest entorn —la 2.5 demana 3.12+—, cosa que no afecta
+l'aplicació.
+
+### 4. Provar-ho a mà
+
+```bash
+.venv/bin/streamlit run aplicacio.py \
+    --server.address 0.0.0.0 --server.port 8080 --server.headless true
+```
+
+Obre `http://<ip-de-la-pi>:8080` des d'un altre ordinador de casa. La primera
+càrrega triga: importar Streamlit i pandas des d'una SD amb una CPU d'1 GHz vol
+mig minut llarg. Les següents ja van de la memòria cau.
+
+### 5. Deixar-ho engegat
+
+El servei de systemd és a `desplegament/gimme-fuel-web.service`, amb les
+instruccions d'instal·lació a dins. Arrenca sol en encendre la Pi i es torna a
+aixecar si el procés cau.
+
+Escolta al **port 8080 en HTTP pla**, no al 80 ni al 443: els ports per sota de
+1024 són privilegiats i el servei no corre com a root. Si algun dia vols HTTPS,
+cal acabar el TLS en un servidor de davant —les opcions `sslCertFile` i
+`sslKeyFile` de Streamlit porten un avís explícit de no fer-les servir en
+producció— i que aquest servidor deixi passar la capçalera `Upgrade`, perquè
+Streamlit parla per WebSocket a `/_stcore/stream`.
+
+### 6. Mantenir `data.db` al dia
+
+L'aplicació només llegeix la base de dades; qui l'omple és cosa a part. El més
+econòmic per a la Pi és generar-la al PC i enviar-la:
+
+```bash
+rsync -avz data.db pi@<ip-de-la-pi>:~/gimme-fuel/data.db
+```
+
+No cal reiniciar res: la memòria cau caduca al cap d'una hora (`DURADA_CACHE`) i
+la primera visita posterior ja llegeix el fitxer nou. Si vols els canvis a
+l'instant, `sudo systemctl restart gimme-fuel-web`.
+
+### 7. Arribar-hi des de fora de casa
+
+**L'aplicació no té cap autenticació**: qui obri l'adreça, ho veu tot. Per a un
+mapa de preus públics això no és cap problema, però és un bon motiu per no obrir
+ports al router. Amb [Tailscale](https://tailscale.com) (xarxa privada entre els
+teus dispositius) o un túnel de Cloudflare hi arribes des de fora sense exposar
+la Pi a Internet.
+
 ## Estructura
 
 | Fitxer | Responsabilitat |
@@ -38,6 +125,7 @@ sobre `data.db`, sense navegador.
 | `escala.py` | Escala de color verd → vermell i posicions relatives de preu. |
 | `configuracio.py` | Ruta de la BD, centre del mapa i catàleg de carburants. |
 | `tests/` | Proves unitàries i d'integració (`*_it.py`). |
+| `desplegament/` | Servei systemd per mantenir l'aplicació engegada. |
 
 ## Decisions
 

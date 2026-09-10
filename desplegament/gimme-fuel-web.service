@@ -1,0 +1,39 @@
+# Servei systemd que manté el mapa d'estacions engegat i el torna a aixecar si cau.
+#
+# Instal·lació (canvia l'usuari i la ruta si no són aquests):
+#   sudo cp desplegament/gimme-fuel-web.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now gimme-fuel-web
+#   systemctl status gimme-fuel-web
+#   journalctl -u gimme-fuel-web -f
+
+[Unit]
+Description=Mapa d'estacions de servei (Streamlit)
+# La xarxa ha d'estar amunt: el servidor s'enllaça a totes les interfícies.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/gimme-fuel
+
+# Ruta de la base de dades. Si el fitxer viu al costat del codi, es pot treure.
+Environment=RUTA_BASE_DADES=/home/pi/gimme-fuel/data.db
+
+# --server.address 0.0.0.0  perquè s'hi pugui arribar des de la xarxa local.
+# --server.headless         no hi ha navegador que obrir a la Pi.
+# --server.fileWatcherType  en producció el codi no canvia: vigilar-lo només
+#                           gasta CPU i memòria, que és el que hi ha just.
+ExecStart=/home/pi/gimme-fuel/.venv/bin/streamlit run aplicacio.py \
+    --server.address 0.0.0.0 \
+    --server.port 8080 \
+    --server.headless true \
+    --server.fileWatcherType none \
+    --browser.gatherUsageStats false
+
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
