@@ -30,6 +30,7 @@ WorkingDirectory=/home/dietpi/gimme-fuel-web
 # O en un fitxer a part, que no es perd en actualitzar el projecte i no demana
 # permisos de root per editar-lo (crea'l encara que no existeixi; el guió `-`
 # fa que el servei arrenqui igualment si hi falta):
+Environment=RUTA_BASE_DADES=~/gimme-fuel/data.db
 EnvironmentFile=-/etc/default/gimme-fuel-web
 
 # --server.address 0.0.0.0  perquè s'hi pugui arribar des de la xarxa local.
