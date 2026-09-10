@@ -43,23 +43,23 @@ sense marge per a res més.
 ### 1. Sistema operatiu de 64 bits
 
 **Obligatori.** Les rodes precompilades de `pandas`, `numpy` i sobretot
-`pyarrow` (que Streamlit necessita) només existeixen per a `aarch64`; amb la
+`pyarrow` (que Streamlit necessita) només existeixen per a `aarch64`; amb una
 imatge de 32 bits, `pip` intentaria compilar-les i una Pi Zero 2 W es quedaria
-hores i acabaria sense memòria. Amb Raspberry Pi OS Lite (64 bits) n'hi ha prou:
-no cal escriptori i s'estalvien uns 200 MB.
+hores i acabaria sense memòria. Amb DietPi, doncs, cal la imatge **ARMv8** de la
+Pi Zero 2: les ARMv6 i ARMv7 també hi arrenquen, i és l'error fàcil de cometre.
+Comprova-ho amb `uname -m`, que ha de dir `aarch64`.
 
 ### 2. Preparar la màquina
 
 ```bash
 sudo apt update && sudo apt install -y python3-venv git
-sudo dphys-swapfile swapoff
-sudo sed -i 's/^CONF_SWAPSIZE=.*/CONF_SWAPSIZE=1024/' /etc/dphys-swapfile
-sudo dphys-swapfile setup && sudo dphys-swapfile swapon
+free -h    # comprova que hi hagi intercanvi
 ```
 
-L'intercanvi d'1 GB no és per fer-hi córrer l'aplicació —seria lentíssim— sinó
-xarxa de seguretat per als pics: la instal·lació de dependències i el moment en
-què entra un segon visitant.
+DietPi ja crea un fitxer d'intercanvi ell sol; si `free -h` en mostra poc o gens,
+puja'l a 1 GB des de `dietpi-config` → *Advanced Options* → *Swapfile*. No és per
+fer-hi córrer l'aplicació —seria lentíssim— sinó xarxa de seguretat per als pics:
+la instal·lació de dependències i el moment en què entra un segon visitant.
 
 ### 3. Copiar el projecte i instal·lar
 
@@ -71,8 +71,8 @@ python3 -m venv .venv
 
 Totes les dependències tenen roda `manylinux_2_28_aarch64`, així que no es
 compila res; amb la SD i la xarxa de la Pi, compta uns deu minuts. Si el sistema
-porta Python 3.11 (Raspberry Pi OS bookworm), `numpy` es resoldrà a una versió
-anterior a la d'aquest entorn —la 2.5 demana 3.12+—, cosa que no afecta
+porta Python 3.11 (DietPi sobre Debian bookworm), `numpy` es resoldrà a una
+versió anterior a la d'aquest entorn —la 2.5 demana 3.12+—, cosa que no afecta
 l'aplicació.
 
 ### 4. Provar-ho a mà
@@ -99,20 +99,60 @@ cal acabar el TLS en un servidor de davant —les opcions `sslCertFile` i
 producció— i que aquest servidor deixi passar la capçalera `Upgrade`, perquè
 Streamlit parla per WebSocket a `/_stcore/stream`.
 
-### 6. Mantenir `data.db` al dia
+### 6. Variables d'entorn
+
+L'aplicació només en llegeix una, `RUTA_BASE_DADES`, i **amb el desplegament
+d'aquí no cal definir-la**: el valor per defecte ja és `data.db` al costat del
+codi, és a dir `~/gimme-fuel/data.db`. Si algun dia la mous, o si hi vols afegir
+qualsevol altra variable, aquestes són les tres vies i el que fa cadascuna:
+
+| On | Com | Qui la veu |
+|---|---|---|
+| La unitat | `Environment=CLAU=valor` a `[Service]` | Només el servei |
+| Fitxer a part | `/etc/default/gimme-fuel-web`, una línia `CLAU=valor` | Només el servei |
+| Sessió interactiva | `export CLAU=valor` a `~/.bashrc` | Només les teves consoles |
+
+La unitat ja porta `EnvironmentFile=-/etc/default/gimme-fuel-web`, així que el
+fitxer a part és la via recomanada: no es perd en actualitzar el projecte des de
+git i el guió inicial (`-`) fa que el servei arrenqui igualment si el fitxer no
+existeix.
+
+```bash
+echo 'RUTA_BASE_DADES=/mnt/dades/estacions.db' | sudo tee /etc/default/gimme-fuel-web
+sudo systemctl restart gimme-fuel-web
+```
+
+Tres paranys que val la pena tenir presents:
+
+- **`~/.bashrc` i `/etc/environment` no arriben al servei.** El primer només
+  afecta les teves consoles interactives; el segon el llegeix PAM en iniciar
+  sessió, i `systemd` no el consulta per als serveis del sistema. Una variable
+  que et funcioni per SSH pot no existir per al servei.
+- **Ni la unitat ni l'`EnvironmentFile` passen per un intèrpret de comandes.**
+  No s'hi expandeix `$ALTRA_VARIABLE` ni cometes: el valor va literal, de
+  l'igual fins al final de la línia. La titlla sí que funciona, però perquè
+  l'expandeix l'aplicació (vegeu `configuracio.ruta_base_dades`).
+- Després de tocar la unitat cal `sudo systemctl daemon-reload`; després de
+  tocar `/etc/default/...`, només reiniciar el servei.
+
+Per canviar coses de la unitat sense editar el fitxer versionat, `sudo systemctl
+edit gimme-fuel-web` crea un fragment a
+`/etc/systemd/system/gimme-fuel-web.service.d/override.conf` que hi té prioritat.
+
+### 7. Mantenir `data.db` al dia
 
 L'aplicació només llegeix la base de dades; qui l'omple és cosa a part. El més
 econòmic per a la Pi és generar-la al PC i enviar-la:
 
 ```bash
-rsync -avz data.db pi@<ip-de-la-pi>:~/gimme-fuel/data.db
+rsync -avz data.db dietpi@<ip-de-la-pi>:~/gimme-fuel/data.db
 ```
 
 No cal reiniciar res: la memòria cau caduca al cap d'una hora (`DURADA_CACHE`) i
 la primera visita posterior ja llegeix el fitxer nou. Si vols els canvis a
 l'instant, `sudo systemctl restart gimme-fuel-web`.
 
-### 7. Arribar-hi des de fora de casa
+### 8. Arribar-hi des de fora de casa
 
 **L'aplicació no té cap autenticació**: qui obri l'adreça, ho veu tot. Per a un
 mapa de preus públics això no és cap problema, però és un bon motiu per no obrir

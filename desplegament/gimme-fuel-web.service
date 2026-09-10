@@ -1,6 +1,8 @@
 # Servei systemd que manté el mapa d'estacions engegat i el torna a aixecar si cau.
+# Escrit per a DietPi, que crea l'usuari `dietpi`: canvia'l a User i a les dues
+# rutes si el teu projecte viu a un altre lloc.
 #
-# Instal·lació (canvia `pi` pel teu usuari a User i a les dues rutes si cal):
+# Instal·lació:
 #   sudo cp desplegament/gimme-fuel-web.service /etc/systemd/system/
 #   sudo systemctl daemon-reload
 #   sudo systemctl enable --now gimme-fuel-web
@@ -15,18 +17,26 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=pi
-WorkingDirectory=/home/pi/gimme-fuel
+User=dietpi
+WorkingDirectory=/home/dietpi/gimme-fuel-web
 
 # La base de dades és ~/gimme-fuel/data.db, al costat del codi, que ja és on la
-# busca l'aplicació per defecte. Només cal aquesta variable si la mous:
-#   Environment=RUTA_BASE_DADES=~/dades/estacions.db
+# busca l'aplicació per defecte: no cal declarar-hi res.
+#
+# Per moure-la, o per afegir qualsevol altra variable, hi ha dues vies. Dins de
+# la unitat mateixa:
+#   Environment=RUTA_BASE_DADES=~/gimme-fuel/data.db
+#
+# O en un fitxer a part, que no es perd en actualitzar el projecte i no demana
+# permisos de root per editar-lo (crea'l encara que no existeixi; el guió `-`
+# fa que el servei arrenqui igualment si hi falta):
+EnvironmentFile=-/etc/default/gimme-fuel-web
 
 # --server.address 0.0.0.0  perquè s'hi pugui arribar des de la xarxa local.
 # --server.headless         no hi ha navegador que obrir a la Pi.
 # --server.fileWatcherType  en producció el codi no canvia: vigilar-lo només
 #                           gasta CPU i memòria, que és el que hi ha just.
-ExecStart=/home/pi/gimme-fuel/.venv/bin/streamlit run aplicacio.py \
+ExecStart=/home/dietpi/gimme-fuel-web/.venv/bin/streamlit run aplicacio.py \
     --server.address 0.0.0.0 \
     --server.port 8080 \
     --server.headless true \
